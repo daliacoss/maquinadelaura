@@ -3,26 +3,33 @@ import update from "immutability-helper";
 import logo from './logo.svg';
 import './App.css';
 
-class App extends Component {
-    render() {
-        return (
-          <div className="App">
-            <p>Hello world!</p>
-            <Matrix width="600px" height="600px" numRows="5" numCols="5"/>
-          </div>
-        );
-    }
-}
+const BehaviorEnum = Object.freeze({
+    TriggerLeft: 1,
+    TriggerRight: 2,
+    TriggerUp: 3,
+    TriggerDown: 4,
+})
 
 function newCellData(){
     return {
         playing: false,
         behaviors: {
             onTrigger: [
-                -1
+                Math.ceil(Math.random() * BehaviorEnum.TriggerDown)
             ]
         }
     };
+}
+
+class App extends Component {
+    render() {
+        return (
+          <div className="App">
+            <p>Hello world!</p>
+            <Matrix width="600px" height="600px" numRows={5} numCols={5}/>
+          </div>
+        );
+    }
 }
 
 class Matrix extends Component {
@@ -66,15 +73,20 @@ class Matrix extends Component {
                 for (let i in prevCellState.behaviors.onTrigger){
                     let behavior = prevCellState.behaviors.onTrigger[i];
                     let cellToQueue = -1;
-                    if (behavior === -1){
-                        if (index % this.props.numCols){
-                            cellToQueue = index - 1;
-                        }
-                    }
-                    else if (behavior === 1){
-                        if (index % this.props.numCols !== this.props.numCols - 1){
-                            cellToQueue = index + 1;
-                        }
+                    
+                    switch (behavior){
+                        case BehaviorEnum.TriggerLeft:
+                            cellToQueue = (index % this.props.numCols) ? index - 1 : cellToQueue;
+                            break;
+                        case BehaviorEnum.TriggerRight:
+                            cellToQueue = (index % this.props.numCols !== this.props.numCols - 1) ? index + 1 : cellToQueue; 
+                            break;
+                        case BehaviorEnum.TriggerUp:
+                            cellToQueue = (index >= this.props.numCols) ? index - this.props.numCols : cellToQueue;
+                            break;
+                        case BehaviorEnum.TriggerDown:
+                            cellToQueue = (index < (this.props.numRows - 1) * this.props.numCols) ? index + this.props.numCols : cellToQueue;
+                            break;
                     }
                     
                     if (cellToQueue >= 0){
@@ -125,7 +137,6 @@ class Cell extends Component {
 
         this.getPos = this.getPos.bind(this);
         this.handlePress = this.handlePress.bind(this);
-        console.log(this.props.row);
         // this.state = {myState: false};
     }
 
