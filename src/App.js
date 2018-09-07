@@ -67,7 +67,7 @@ class App extends Component {
         return (
           <div className="App">
             <p>Hello world!</p>
-            <Matrix width="600px" height="600px" numRows={5} numCols={5}/>
+            <Matrix width="600px" height="600px" numRows={5} numCols={5} tempo={90}/>
           </div>
         );
     }
@@ -78,7 +78,7 @@ class Matrix extends Component {
     constructor(props) {
         super(props);
 
-        let _state = {queue: []};
+        let _state = {queue: [], isPlaying: false};
         for (let i = 0; i < this.props.numRows; i++){
             // let row = {};
             for (let j = 0; j < this.props.numCols; j++){
@@ -89,6 +89,25 @@ class Matrix extends Component {
         this.state = _state;
         this.handleCellPress = this.handleCellPress.bind(this);
         this.playStep = this.playStep.bind(this);
+        this.toggleTimer = this.toggleTimer.bind(this);
+    }
+
+    componentWillUnmount() {
+        this.stopTimer();
+    }
+    
+    startTimer() {
+        this.timerID = setInterval(() => this.playStep(), (6 / this.props.tempo) * 2500);
+        this.setState({isPlaying: true});
+    }
+    
+    stopTimer() {
+        clearInterval(this.timerID);
+        this.setState({isPlaying: false});
+    }
+
+    toggleTimer() {
+        (this.state.isPlaying) ? this.stopTimer() : this.startTimer();
     }
 
     handleCellPress(cell, e){
@@ -179,6 +198,7 @@ class Matrix extends Component {
                 </svg>
                 <br/>
                 <button onClick={this.playStep}>next step</button>
+                <button onClick={this.toggleTimer}>toggle timer</button>
             </div>
         )
     }
