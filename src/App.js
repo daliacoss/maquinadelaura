@@ -53,7 +53,8 @@ function newCellData(){
         behaviors: {
             onTriggerByPress: [
                 // Math.ceil(Math.random() * BehaviorEnum.TriggerDown)
-                BehaviorEnum.TriggerRight
+                BehaviorEnum.TriggerRight,
+                BehaviorEnum.TriggerLeft
             ],
             onTriggerByCell: [
                 BehaviorEnum.TriggerClockwise
@@ -96,11 +97,14 @@ class Matrix extends Component {
     componentWillUnmount() {
         this.stopTimer();
     }
-    
+
     setTimer(tempo) {
+        if (! tempo){
+            return;
+        }
         this.timerID = setInterval(() => this.playStep(), (6 / tempo) * 2500);
     }
-    
+
     clearTimer(){
         clearInterval(this.timerID);
     }
@@ -109,10 +113,10 @@ class Matrix extends Component {
         if (this.state.isPlaying){
             return false;
         }
-        
+
         this.setTimer(this.state.tempo);
         this.setState({isPlaying: true});
-        
+
         return true;
     }
 
@@ -162,6 +166,7 @@ class Matrix extends Component {
         this.setState((prevState) => {
             let newState = {};
             let newQueue = [];
+            let alreadyUpdated = {};
 
             for (let k in prevState.queue){
                 let index = prevState.queue[k].index;
@@ -203,9 +208,13 @@ class Matrix extends Component {
                         newQueue.push({index: cellToQueue, triggeredByIndex: index, triggeredByDirection: absoluteBehavior});
                     }
                 }
-                newState[index] = update(prevCellState, {
-                    playing: {$apply: (x) => !x}
-                });
+                if (!alreadyUpdated[index]){
+                    newState[index] = update(prevCellState, {
+                        playing: {$apply: (x) => !x}
+                    });
+                }
+
+                alreadyUpdated[index] = true;
             }
 
             newState.queue = newQueue;
