@@ -67,7 +67,7 @@ class App extends Component {
         return (
           <div className="App">
             <p>Hello world!</p>
-            <Matrix width="600px" height="600px" numRows={5} numCols={5} tempo={90}/>
+            <Matrix width="600px" height="600px" numRows={5} numCols={5}/>
           </div>
         );
     }
@@ -78,7 +78,7 @@ class Matrix extends Component {
     constructor(props) {
         super(props);
 
-        let _state = {queue: [], isPlaying: false};
+        let _state = {queue: [], isPlaying: false, tempo: 100};
         for (let i = 0; i < this.props.numRows; i++){
             // let row = {};
             for (let j = 0; j < this.props.numCols; j++){
@@ -90,24 +90,61 @@ class Matrix extends Component {
         this.handleCellPress = this.handleCellPress.bind(this);
         this.playStep = this.playStep.bind(this);
         this.toggleTimer = this.toggleTimer.bind(this);
+        this.setTempoFromForm = this.setTempoFromForm.bind(this);
     }
 
     componentWillUnmount() {
         this.stopTimer();
     }
     
-    startTimer() {
-        this.timerID = setInterval(() => this.playStep(), (6 / this.props.tempo) * 2500);
-        this.setState({isPlaying: true});
+    setTimer(tempo) {
+        this.timerID = setInterval(() => this.playStep(), (6 / tempo) * 2500);
     }
     
-    stopTimer() {
+    clearTimer(){
         clearInterval(this.timerID);
+    }
+
+    startTimer() {
+        if (this.state.isPlaying){
+            return false;
+        }
+        
+        this.setTimer(this.state.tempo);
+        this.setState({isPlaying: true});
+        
+        return true;
+    }
+
+    stopTimer() {
+        this.clearTimer();
         this.setState({isPlaying: false});
     }
 
     toggleTimer() {
-        (this.state.isPlaying) ? this.stopTimer() : this.startTimer();
+        if (! this.startTimer()){
+            this.stopTimer();
+        }
+    }
+
+    setTempoFromForm(e) {
+        let tempo = parseFloat(e.target.value);
+        if (isNaN(tempo)){
+            return;
+        }
+
+        this.setState((prevState) => {
+            // we have to clear and set the intervals directly instead of using
+            // startTimer or stopTimer, since those wrappers rely on potentially
+            // outdated state
+            this.clearTimer();
+
+            if (prevState.isPlaying){
+                this.setTimer(tempo);
+            }
+
+            return {tempo}
+        });
     }
 
     handleCellPress(cell, e){
@@ -191,6 +228,7 @@ class Matrix extends Component {
             }
         }
 
+
         return (
             <div>
                 <svg className="Matrix" width={this.props.width} height={this.props.height}>
@@ -199,6 +237,7 @@ class Matrix extends Component {
                 <br/>
                 <button onClick={this.playStep}>next step</button>
                 <button onClick={this.toggleTimer}>toggle timer</button>
+                <input type="text" value={this.state.tempo} onChange={this.setTempoFromForm}/>
             </div>
         )
     }
