@@ -236,7 +236,9 @@ class Matrix extends Component {
                 </svg>
                 <br/>
                 <button onClick={this.playStep}>next step</button>
-                <button onClick={this.toggleTimer}>toggle timer</button>
+                <button onClick={this.toggleTimer}>
+                    {(this.state.isPlaying) ? "stop" : "start"}
+                </button>
                 <input type="text" value={this.state.tempo} onChange={this.setTempoFromForm}/>
             </div>
         )
