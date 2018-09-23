@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import update from "immutability-helper";
-import logo from './logo.svg';
+import posed from "react-pose";
 import './App.css';
 
 const BehaviorEnum = Object.freeze({
@@ -49,7 +49,7 @@ function relativeDirectionToAbsolute(fromAbsolute, toRelative){
 
 function newCellData(){
     return {
-        playing: false,
+        isPlaying: false,
         behaviors: {
             onTriggerByPress: [
                 // Math.ceil(Math.random() * BehaviorEnum.TriggerDown)
@@ -166,7 +166,7 @@ class Matrix extends Component {
         this.setState((prevState) => {
             let newState = {};
             let newQueue = [];
-            let alreadyUpdated = {};
+            let cellsToSetActive = {};
 
             for (let k in prevState.queue){
                 let index = prevState.queue[k].index;
@@ -208,13 +208,25 @@ class Matrix extends Component {
                         newQueue.push({index: cellToQueue, triggeredByIndex: index, triggeredByDirection: absoluteBehavior});
                     }
                 }
-                if (!alreadyUpdated[index]){
-                    newState[index] = update(prevCellState, {
-                        playing: {$apply: (x) => !x}
+
+                cellsToSetActive[index] = true;
+            }
+            
+            for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
+
+                let prevCellState = prevState[i];
+
+                if (cellsToSetActive[i]) {
+                    newState[i] = update(prevCellState, {
+                        isPlaying: {$set: true}
                     });
                 }
 
-                alreadyUpdated[index] = true;
+                else if (prevCellState.isPlaying) {
+                    newState[i] = update(prevCellState, {
+                        isPlaying: {$set: false}
+                    });
+                }
             }
 
             newState.queue = newQueue;
@@ -232,7 +244,8 @@ class Matrix extends Component {
                     <Cell row={i} col={j}
                     key={i.toString() + "-" + j.toString()}
                     onPress={this.handleCellPress}
-                    myProp={this.state[(i * this.props.numCols) + j].playing}/>
+                    isActive={this.state[(i * this.props.numCols) + j].isPlaying}
+                    />
                 );
             }
         }
@@ -277,17 +290,33 @@ class Cell extends Component {
 
     render() {
         let pos = this.getPos();
-
+        
         return (
-            <rect className="Cell"
+            <Box
             x={pos.x.toString() + "%"}
             y={pos.y.toString() + "%"}
             width="10%"
             height="10%"
-            fill={(this.props.myProp) ? "red" : "blue"}
-            onMouseDown={this.handlePress} />
+            pose={(this.props.isActive) ? "active" : "inactive"}
+            fillActive="#aaff70"
+            fillInactive="#3333ff"
+            onMouseDown={this.handlePress}
+            />
         )
     }
 }
+
+const Box = posed.rect({
+    inactive: {
+        fill: ({fillInactive}) => fillInactive,
+    },
+    active: {
+        fill: ({fillActive}) => fillActive,
+        transition: {
+            flip: 1,
+        },
+    },
+    props: {fillActive: "#fff", fillInactive: "#000"}
+})
 
 export default App;

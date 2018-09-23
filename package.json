@@ -6,6 +6,7 @@
     "immutability-helper": "^2.7.1",
     "react": "^16.4.1",
     "react-dom": "^16.4.1",
+    "react-pose": "^3.3.0",
     "react-scripts": "1.1.4"
   },
   "scripts": {
