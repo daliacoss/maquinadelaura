@@ -302,12 +302,8 @@ class Cell extends Component {
             y={pos.y.toString() + "%"}
             width="10%"
             height="10%"
-            // active if timesPlayed is odd, activeAlt if even and nonzero
-            pose={
-                (! this.props.timesPlayed)     ? "inactive" :
-                (this.props.timesPlayed % 2)   ? "active"   :
-                                                 "activeAlt"
-            }
+            pose={(! this.props.timesPlayed) ? "inactive" : "active"}
+            poseKey={this.props.timesPlayed % 2}
             fillActive="#aaff70"
             fillInactive="#3333ff"
             onMouseDown={this.handlePress}
@@ -328,15 +324,7 @@ const Box = posed.rect({
             values: [fillInactive, to],
         }),
     },
-    activeAlt: {
-        fill: ({fillActive}) => fillActive,
-        transition: ({from, to, fillInactive}) => ({
-            flip: 1,
-            type: "keyframes",
-            values: [fillInactive, to],
-        }),
-    },
     props: {fillActive: "#fff", fillInactive: "#000"}
-})
+});
 
 export default App;
