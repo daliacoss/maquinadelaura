@@ -50,11 +50,12 @@ function relativeDirectionToAbsolute(fromAbsolute, toRelative){
 function newCellData(){
     return {
         isPlaying: false,
+        timesPlayed: 0,
         behaviors: {
             onTriggerByPress: [
                 // Math.ceil(Math.random() * BehaviorEnum.TriggerDown)
                 BehaviorEnum.TriggerRight,
-                BehaviorEnum.TriggerLeft
+                // BehaviorEnum.TriggerLeft
             ],
             onTriggerByCell: [
                 BehaviorEnum.TriggerClockwise
@@ -159,7 +160,6 @@ class Matrix extends Component {
                 queue: {$push: [{triggeredByIndex: -1, index}]}
             });
         });
-        // this.triggerCell(index, true);
     }
 
     playStep(){
@@ -211,20 +211,23 @@ class Matrix extends Component {
 
                 cellsToSetActive[index] = true;
             }
-            
+
             for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
 
                 let prevCellState = prevState[i];
 
                 if (cellsToSetActive[i]) {
                     newState[i] = update(prevCellState, {
-                        isPlaying: {$set: true}
+                        isPlaying: {$set: true},
+                        wasPlaying: {$set: prevCellState.isPlaying},
+                        timesPlayed: {$apply: (x) => x + 1},
                     });
                 }
 
                 else if (prevCellState.isPlaying) {
                     newState[i] = update(prevCellState, {
-                        isPlaying: {$set: false}
+                        isPlaying: {$set: false},
+                        wasPlaying: {$set: prevCellState.isPlaying},
                     });
                 }
             }
@@ -240,11 +243,14 @@ class Matrix extends Component {
 
         for (let i = 0; i < this.props.numRows; i++){
             for (let j = 0; j < this.props.numCols; j++){
+                let cellState = this.state[(i * this.props.numCols) + j];
+                
                 cells.push(
                     <Cell row={i} col={j}
                     key={i.toString() + "-" + j.toString()}
                     onPress={this.handleCellPress}
-                    isActive={this.state[(i * this.props.numCols) + j].isPlaying}
+                    isActive={cellState.isPlaying}
+                    timesPlayed={cellState.timesPlayed}
                     />
                 );
             }
@@ -274,7 +280,6 @@ class Cell extends Component {
 
         this.getPos = this.getPos.bind(this);
         this.handlePress = this.handlePress.bind(this);
-        // this.state = {myState: false};
     }
 
     getPos() {
@@ -282,22 +287,27 @@ class Cell extends Component {
     }
 
     handlePress(e) {
-        // this.setState((prevState) => ({
-        //     myState: ! prevState.myState
-        // }));
+        if (e.button !== 0){
+            return;
+        }
         this.props.onPress(this, e);
     }
 
     render() {
         let pos = this.getPos();
-        
+
         return (
             <Box
             x={pos.x.toString() + "%"}
             y={pos.y.toString() + "%"}
             width="10%"
             height="10%"
-            pose={(this.props.isActive) ? "active" : "inactive"}
+            // active if timesPlayed is odd, activeAlt if even and nonzero
+            pose={
+                (! this.props.timesPlayed)     ? "inactive" :
+                (this.props.timesPlayed % 2)   ? "active"   :
+                                                 "activeAlt"
+            }
             fillActive="#aaff70"
             fillInactive="#3333ff"
             onMouseDown={this.handlePress}
@@ -312,9 +322,19 @@ const Box = posed.rect({
     },
     active: {
         fill: ({fillActive}) => fillActive,
-        transition: {
+        transition: ({from, to, fillInactive}) => ({
             flip: 1,
-        },
+            type: "keyframes",
+            values: [fillInactive, to],
+        }),
+    },
+    activeAlt: {
+        fill: ({fillActive}) => fillActive,
+        transition: ({from, to, fillInactive}) => ({
+            flip: 1,
+            type: "keyframes",
+            values: [fillInactive, to],
+        }),
     },
     props: {fillActive: "#fff", fillInactive: "#000"}
 })
