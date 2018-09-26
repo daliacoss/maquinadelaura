@@ -319,9 +319,9 @@ const Box = posed.rect({
     active: {
         fill: ({fillActive}) => fillActive,
         transition: ({from, to, fillInactive}) => ({
-            flip: 1,
             type: "keyframes",
-            values: [fillInactive, to],
+            duration: 450,
+            values: [fillInactive, to, fillInactive],
         }),
     },
     props: {fillActive: "#fff", fillInactive: "#000"}
