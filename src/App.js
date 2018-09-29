@@ -247,9 +247,10 @@ class Matrix extends Component {
                 
                 cells.push(
                     <Cell row={i} col={j}
+                    numRows={this.props.numRows}
+                    numCols={this.props.numCols}
                     key={i.toString() + "-" + j.toString()}
                     onPress={this.handleCellPress}
-                    isActive={cellState.isPlaying}
                     timesPlayed={cellState.timesPlayed}
                     />
                 );
@@ -278,12 +279,27 @@ class Cell extends Component {
     constructor(props) {
         super(props);
 
-        this.getPos = this.getPos.bind(this);
+        this.getTransform = this.getTransform.bind(this);
         this.handlePress = this.handlePress.bind(this);
     }
 
-    getPos() {
-        return {x: this.props.col * 15, y: this.props.row * 15};
+    getTransform() {
+
+        let sizeWithPadding = 100 / Math.max(this.props.numCols, this.props.numRows);
+        let size = .80 * sizeWithPadding;
+        let f = (a) => (a * sizeWithPadding) + .5 * (sizeWithPadding - size);
+        let x = f(this.props.col);
+        let y = f(this.props.row);
+        
+        let diff = (this.props.numCols - this.props.numRows) * sizeWithPadding;
+        if (diff > 0){
+            y += diff / 2;
+        }
+        else if (diff < 0){
+            x += diff / -2;
+        }
+
+        return {x, y, size};
     }
 
     handlePress(e) {
@@ -294,14 +310,14 @@ class Cell extends Component {
     }
 
     render() {
-        let pos = this.getPos();
+        let transform = this.getTransform();
 
         return (
             <Box
-            x={pos.x.toString() + "%"}
-            y={pos.y.toString() + "%"}
-            width="10%"
-            height="10%"
+            x={transform.x.toString() + "%"}
+            y={transform.y.toString() + "%"}
+            width={transform.size.toString() + "%"}
+            height={transform.size.toString() + "%"}
             pose={(! this.props.timesPlayed) ? "inactive" : "active"}
             poseKey={this.props.timesPlayed % 2}
             fillActive="#aaff70"
