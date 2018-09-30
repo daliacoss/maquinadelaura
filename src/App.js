@@ -49,8 +49,9 @@ function relativeDirectionToAbsolute(fromAbsolute, toRelative){
 
 function newCellData(){
     return {
-        isPlaying: false,
+        // isPlaying: false,
         timesPlayed: 0,
+        mostRecentStepPlayed: -1,
         behaviors: {
             onTriggerByPress: [
                 // Math.ceil(Math.random() * BehaviorEnum.TriggerDown)
@@ -74,7 +75,7 @@ class App extends Component {
             let numRows = Math.ceil(Math.random() * 7);
             let numCols = Math.ceil(Math.random() * 7);
             this.setState({numRows, numCols});
-        }
+        };
         return (
           <div className="App">
             <p>Hello world!</p>
@@ -92,11 +93,9 @@ class Matrix extends Component {
     constructor(props) {
         super(props);
 
-        let _state = {queue: [], isPlaying: false, tempo: 100};
+        let _state = {queue: [], isPlaying: false, tempo: 100, step: -1};
         for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
-            // for (let j = 0; j < this.props.numCols; j++){
             _state[i] = newCellData();
-            // }
         }
         this.state = _state;
         this.handleCellPress = this.handleCellPress.bind(this);
@@ -177,6 +176,7 @@ class Matrix extends Component {
             let newState = {};
             let newQueue = [];
             let cellsToSetActive = {};
+            newState.step = prevState.step + 1;
 
             for (let k in prevState.queue){
                 let index = prevState.queue[k].index;
@@ -231,15 +231,8 @@ class Matrix extends Component {
                 }
                 else if (cellsToSetActive[i]) {
                     newState[i] = update(prevCellState, {
-                        isPlaying: {$set: true},
-                        wasPlaying: {$set: prevCellState.isPlaying},
                         timesPlayed: {$apply: (x) => x + 1},
-                    });
-                }
-                else if (prevCellState.isPlaying) {
-                    newState[i] = update(prevCellState, {
-                        isPlaying: {$set: false},
-                        wasPlaying: {$set: prevCellState.isPlaying},
+                        mostRecentStepPlayed: {$set: newState.step}
                     });
                 }
             }
@@ -256,7 +249,6 @@ class Matrix extends Component {
         for (let i = 0; i < this.props.numRows; i++){
             for (let j = 0; j < this.props.numCols; j++){
                 let cellState = this.state[(i * this.props.numCols) + j] || newCellData();
-                
                 cells.push(
                     <Cell row={i} col={j}
                     numRows={this.props.numRows}
@@ -264,6 +256,7 @@ class Matrix extends Component {
                     key={i.toString() + "-" + j.toString()}
                     onPress={this.handleCellPress}
                     timesPlayed={cellState.timesPlayed}
+                    isActive={cellState.timesPlayed && (cellState.mostRecentStepPlayed === this.state.step)}
                     />
                 );
             }
@@ -302,7 +295,7 @@ class Cell extends Component {
         let f = (a) => (a * sizeWithPadding) + .5 * (sizeWithPadding - size);
         let x = f(this.props.col);
         let y = f(this.props.row);
-        
+
         let diff = (this.props.numCols - this.props.numRows) * sizeWithPadding;
         if (diff > 0){
             y += diff / 2;
@@ -330,7 +323,7 @@ class Cell extends Component {
             y={transform.y.toString() + "%"}
             width={transform.size.toString() + "%"}
             height={transform.size.toString() + "%"}
-            pose={(! this.props.timesPlayed) ? "inactive" : "active"}
+            pose={(this.props.isActive) ? "active" : "inactive"}
             poseKey={this.props.timesPlayed % 2}
             fillActive="#aaff70"
             fillInactive="#3333ff"
