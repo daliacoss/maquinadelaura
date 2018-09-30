@@ -65,11 +65,23 @@ function newCellData(){
 }
 
 class App extends Component {
+    constructor(props) {
+        super(props)
+        this.state = {numRows: 5, numCols: 5}
+    }
     render() {
+        let onClick = () => {
+            let numRows = Math.ceil(Math.random() * 7);
+            let numCols = Math.ceil(Math.random() * 7);
+            this.setState({numRows, numCols});
+        }
         return (
           <div className="App">
             <p>Hello world!</p>
-            <Matrix width="600px" height="600px" numRows={5} numCols={5}/>
+            <Matrix width="600px" height="600px" numRows={this.state.numRows} numCols={this.state.numCols}/>
+            <button onClick={onClick}>
+                randomize grid size
+            </button>
           </div>
         );
     }
@@ -81,12 +93,10 @@ class Matrix extends Component {
         super(props);
 
         let _state = {queue: [], isPlaying: false, tempo: 100};
-        for (let i = 0; i < this.props.numRows; i++){
-            // let row = {};
-            for (let j = 0; j < this.props.numCols; j++){
-                _state[(i * this.props.numCols) + j] = newCellData();
-            }
-            // _state[i] = row;
+        for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
+            // for (let j = 0; j < this.props.numCols; j++){
+            _state[i] = newCellData();
+            // }
         }
         this.state = _state;
         this.handleCellPress = this.handleCellPress.bind(this);
@@ -216,14 +226,16 @@ class Matrix extends Component {
 
                 let prevCellState = prevState[i];
 
-                if (cellsToSetActive[i]) {
+                if (! prevCellState){
+                    prevState[i] = newCellData();
+                }
+                else if (cellsToSetActive[i]) {
                     newState[i] = update(prevCellState, {
                         isPlaying: {$set: true},
                         wasPlaying: {$set: prevCellState.isPlaying},
                         timesPlayed: {$apply: (x) => x + 1},
                     });
                 }
-
                 else if (prevCellState.isPlaying) {
                     newState[i] = update(prevCellState, {
                         isPlaying: {$set: false},
@@ -243,7 +255,7 @@ class Matrix extends Component {
 
         for (let i = 0; i < this.props.numRows; i++){
             for (let j = 0; j < this.props.numCols; j++){
-                let cellState = this.state[(i * this.props.numCols) + j];
+                let cellState = this.state[(i * this.props.numCols) + j] || newCellData();
                 
                 cells.push(
                     <Cell row={i} col={j}
