@@ -99,7 +99,7 @@ class Matrix extends Component {
         }
         this.state = _state;
         this.handleCellPress = this.handleCellPress.bind(this);
-        this.playStep = this.playStep.bind(this);
+        // this.playStep = this.playStep.bind(this);
         this.toggleTimer = this.toggleTimer.bind(this);
         this.setTempoFromForm = this.setTempoFromForm.bind(this);
     }
@@ -171,75 +171,73 @@ class Matrix extends Component {
         });
     }
 
-    playStep(){
-        this.setState((prevState) => {
-            let newState = {};
-            let newQueue = [];
-            let cellsToSetActive = {};
-            newState.step = prevState.step + 1;
+    playStep(prevState){
+        let newState = {};
+        let newQueue = [];
+        let cellsToSetActive = {};
+        newState.step = prevState.step + 1;
 
-            for (let k in prevState.queue){
-                let index = prevState.queue[k].index;
-                let triggeredByIndex = prevState.queue[k].triggeredByIndex;
+        for (let k in prevState.queue){
+            let index = prevState.queue[k].index;
+            let triggeredByIndex = prevState.queue[k].triggeredByIndex;
 
-                let prevCellState = prevState[index];
-                let behaviors = prevCellState.behaviors[(triggeredByIndex < 0) ? "onTriggerByPress" : "onTriggerByCell"];
+            let prevCellState = prevState[index];
+            let behaviors = prevCellState.behaviors[(triggeredByIndex < 0) ? "onTriggerByPress" : "onTriggerByCell"];
 
-                for (let i in behaviors){
-                    let cellToQueue = -1;
+            for (let i in behaviors){
+                let cellToQueue = -1;
 
-                    // if triggered by a press, relative directions are
-                    // meaningless, so use behavior as is. if triggered by
-                    // another cell, and the behavior to respond with is a
-                    // relative direction, convert that to an absolute direction
+                // if triggered by a press, relative directions are
+                // meaningless, so use behavior as is. if triggered by
+                // another cell, and the behavior to respond with is a
+                // relative direction, convert that to an absolute direction
 
-                    let absoluteBehavior = (triggeredByIndex < 0) ? behaviors[i] :
-                                           relativeDirectionToAbsolute(prevState.queue[k].triggeredByDirection, behaviors[i]);
+                let absoluteBehavior = (triggeredByIndex < 0) ? behaviors[i] :
+                                       relativeDirectionToAbsolute(prevState.queue[k].triggeredByDirection, behaviors[i]);
 
-                    // determine which neighbours, if any, should be triggered
-                    // on the next cycle
+                // determine which neighbours, if any, should be triggered
+                // on the next cycle
 
-                    switch (absoluteBehavior){
-                        case BehaviorEnum.TriggerLeft:
-                            cellToQueue = (index % this.props.numCols) ? index - 1 : cellToQueue;
-                            break;
-                        case BehaviorEnum.TriggerRight:
-                            cellToQueue = (index % this.props.numCols !== this.props.numCols - 1) ? index + 1 : cellToQueue;
-                            break;
-                        case BehaviorEnum.TriggerUp:
-                            cellToQueue = (index >= this.props.numCols) ? index - this.props.numCols : cellToQueue;
-                            break;
-                        case BehaviorEnum.TriggerDown:
-                            cellToQueue = (index < (this.props.numRows - 1) * this.props.numCols) ? index + this.props.numCols : cellToQueue;
-                            break;
-                    }
-
-                    if (cellToQueue >= 0){
-                        newQueue.push({index: cellToQueue, triggeredByIndex: index, triggeredByDirection: absoluteBehavior});
-                    }
+                switch (absoluteBehavior){
+                    case BehaviorEnum.TriggerLeft:
+                        cellToQueue = (index % this.props.numCols) ? index - 1 : cellToQueue;
+                        break;
+                    case BehaviorEnum.TriggerRight:
+                        cellToQueue = (index % this.props.numCols !== this.props.numCols - 1) ? index + 1 : cellToQueue;
+                        break;
+                    case BehaviorEnum.TriggerUp:
+                        cellToQueue = (index >= this.props.numCols) ? index - this.props.numCols : cellToQueue;
+                        break;
+                    case BehaviorEnum.TriggerDown:
+                        cellToQueue = (index < (this.props.numRows - 1) * this.props.numCols) ? index + this.props.numCols : cellToQueue;
+                        break;
                 }
 
-                cellsToSetActive[index] = true;
-            }
-
-            for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
-
-                let prevCellState = prevState[i];
-
-                if (! prevCellState){
-                    prevState[i] = newCellData();
-                }
-                else if (cellsToSetActive[i]) {
-                    newState[i] = update(prevCellState, {
-                        timesPlayed: {$apply: (x) => x + 1},
-                        mostRecentStepPlayed: {$set: newState.step}
-                    });
+                if (cellToQueue >= 0){
+                    newQueue.push({index: cellToQueue, triggeredByIndex: index, triggeredByDirection: absoluteBehavior});
                 }
             }
 
-            newState.queue = newQueue;
-            return newState;
-        });
+            cellsToSetActive[index] = true;
+        }
+
+        for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
+
+            let prevCellState = prevState[i];
+
+            if (! prevCellState){
+                prevState[i] = newCellData();
+            }
+            else if (cellsToSetActive[i]) {
+                newState[i] = update(prevCellState, {
+                    timesPlayed: {$apply: (x) => x + 1},
+                    mostRecentStepPlayed: {$set: newState.step}
+                });
+            }
+        }
+
+        newState.queue = newQueue;
+        return newState;
     }
 
     render() {
@@ -262,14 +260,14 @@ class Matrix extends Component {
             }
         }
 
-
+        
         return (
             <div>
                 <svg className="Matrix" width={this.props.width} height={this.props.height}>
                     { cells }
                 </svg>
                 <br/>
-                <button onClick={this.playStep}>next step</button>
+                <button onClick={() => this.setState(this.playStep)}>next step</button>
                 <button onClick={this.toggleTimer}>
                     {(this.state.isPlaying) ? "stop" : "start"}
                 </button>
