@@ -99,7 +99,7 @@ class Matrix extends Component {
 
     constructor(props) {
         super(props);
-        
+
         let _state = {queue: [], isPlaying: false, tempo: 100, step: -1};
         for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
             _state[i] = newCellData();
@@ -255,6 +255,7 @@ class Matrix extends Component {
         let size = .80 * sizeWithPadding;
         let diff = (this.props.numCols - this.props.numRows) * sizeWithPadding;
 
+        // create list of <Cell>'s
         for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
             let cellState = this.state[i] || newCellData();
             let cellIsActive = cellState.timesPlayed && (cellState.mostRecentStepPlayed === this.state.step);
@@ -263,43 +264,47 @@ class Matrix extends Component {
 
             let x = (col * sizeWithPadding) + .5 * (sizeWithPadding - size);
             let y = (row * sizeWithPadding) + .5 * (sizeWithPadding - size);
+
+            // vertically center grid if there are more columns than rows
             if (diff > 0){
                 y += diff / 2;
             }
+            // horizontally center grid if there are more rows than columns
             else if (diff < 0){
                 x += diff / -2;
             }
-            
+
             let pressHandler = this.cellPressHandlers[i];
             if (! pressHandler){
                 pressHandler = (e) => {
-                    console.log("hi")
                     if (e.button !== 0){
                         return;
                     }
                     this.handleCellPress(i);
                 }
-                
+
                 this.cellPressHandlers[i] = pressHandler;
             }
- 
-            cells.push(
-                <CellPosed
-                key={`${row}-${col}`}
-                hostRef={this.props.hostRef}
-                x={x.toString() + "%"}
-                y={y.toString() + "%"}
-                size={size.toString() + "%"}
-                pose={(cellIsActive) ? "active" : "inactive"}
-                poseKey={cellState.timesPlayed % 2}
-                fillActive="#aaff70"
-                fillInactive="#3333ff"
-                onMouseDown={pressHandler}
-                />
-            );
+
+            // poseKey allows "active" pose to be retriggered whenever the
+            // number of times this cell has played goes up
+            let props = {
+                key: `${row}-${col}`,
+                x: `${x}%`,
+                y: `${y}%`,
+                width: `${size}%`,
+                height: `${size}%`,
+                pose: (cellIsActive) ? "active" : "inactive",
+                poseKey: cellState.timesPlayed % 2,
+                fillActive: "#aaff70", // MAGIC VALUE
+                fillInactive: "#3333ff", // MAGIC VALUE
+                onMouseDown: pressHandler,
+            };
+
+            cells.push(<Cell {...props} />);
         }
 
-        
+
         return (
             <div>
                 <svg className="Matrix" width={this.props.width} height={this.props.height}>
@@ -316,18 +321,7 @@ class Matrix extends Component {
     }
 }
 
-const Cell = (props) => (
-    <rect
-    ref={props.hostRef}
-    x={props.x}
-    y={props.y}
-    width={props.size}
-    height={props.size}
-    onMouseDown={props.onMouseDown}
-    />
-)
-
-const CellPosed = posed(Cell)({
+const Cell = posed.rect({
     inactive: {
         fill: ({fillInactive}) => fillInactive,
     },
@@ -335,7 +329,7 @@ const CellPosed = posed(Cell)({
         fill: ({fillActive}) => fillActive,
         transition: ({from, to, fillInactive}) => ({
             type: "keyframes",
-            duration: 450,
+            duration: 450, // MAGIC VALUE
             values: [fillInactive, to, fillInactive],
         }),
     },
