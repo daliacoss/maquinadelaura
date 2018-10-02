@@ -69,6 +69,7 @@ class App extends Component {
     constructor(props) {
         super(props)
         this.state = {numRows: 5, numCols: 5}
+        this.ref = React.createRef();
     }
     render() {
         let onClick = () => {
@@ -79,7 +80,13 @@ class App extends Component {
         return (
           <div className="App">
             <p>Hello world!</p>
-            <Matrix width="600px" height="600px" numRows={this.state.numRows} numCols={this.state.numCols}/>
+            <Matrix
+            width="600px"
+            height="600px"
+            numRows={this.state.numRows}
+            numCols={this.state.numCols}
+            hostRef={this.ref}
+            />
             <button onClick={onClick}>
                 randomize grid size
             </button>
@@ -92,7 +99,7 @@ class Matrix extends Component {
 
     constructor(props) {
         super(props);
-
+        
         let _state = {queue: [], isPlaying: false, tempo: 100, step: -1};
         for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
             _state[i] = newCellData();
@@ -102,6 +109,7 @@ class Matrix extends Component {
         // this.playStep = this.playStep.bind(this);
         this.toggleTimer = this.toggleTimer.bind(this);
         this.setTempoFromForm = this.setTempoFromForm.bind(this);
+        this.cellPressHandlers = {};
     }
 
     componentWillUnmount() {
@@ -112,7 +120,7 @@ class Matrix extends Component {
         if (! tempo){
             return;
         }
-        this.timerID = setInterval(() => this.playStep(), (6 / tempo) * 2500);
+        this.timerID = setInterval(() => this.setState(this.playStep), (6 / tempo) * 2500);
     }
 
     clearTimer(){
@@ -161,8 +169,8 @@ class Matrix extends Component {
         });
     }
 
-    handleCellPress(cell, e){
-        let index = (cell.props.row * this.props.numCols) + cell.props.col;
+    handleCellPress(index){
+        // let index = (cell.props.row * this.props.numCols) + cell.props.col;
 
         this.setState((prevState) => {
             return update(prevState, {
@@ -243,21 +251,52 @@ class Matrix extends Component {
     render() {
 
         let cells = [];
+        let sizeWithPadding = 100 / Math.max(this.props.numCols, this.props.numRows);
+        let size = .80 * sizeWithPadding;
+        let diff = (this.props.numCols - this.props.numRows) * sizeWithPadding;
 
-        for (let i = 0; i < this.props.numRows; i++){
-            for (let j = 0; j < this.props.numCols; j++){
-                let cellState = this.state[(i * this.props.numCols) + j] || newCellData();
-                cells.push(
-                    <Cell row={i} col={j}
-                    numRows={this.props.numRows}
-                    numCols={this.props.numCols}
-                    key={i.toString() + "-" + j.toString()}
-                    onPress={this.handleCellPress}
-                    timesPlayed={cellState.timesPlayed}
-                    isActive={cellState.timesPlayed && (cellState.mostRecentStepPlayed === this.state.step)}
-                    />
-                );
+        for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
+            let cellState = this.state[i] || newCellData();
+            let cellIsActive = cellState.timesPlayed && (cellState.mostRecentStepPlayed === this.state.step);
+            let col = i % this.props.numCols;
+            let row = Math.floor(i / this.props.numCols);
+
+            let x = (col * sizeWithPadding) + .5 * (sizeWithPadding - size);
+            let y = (row * sizeWithPadding) + .5 * (sizeWithPadding - size);
+            if (diff > 0){
+                y += diff / 2;
             }
+            else if (diff < 0){
+                x += diff / -2;
+            }
+            
+            let pressHandler = this.cellPressHandlers[i];
+            if (! pressHandler){
+                pressHandler = (e) => {
+                    console.log("hi")
+                    if (e.button !== 0){
+                        return;
+                    }
+                    this.handleCellPress(i);
+                }
+                
+                this.cellPressHandlers[i] = pressHandler;
+            }
+ 
+            cells.push(
+                <CellPosed
+                key={`${row}-${col}`}
+                hostRef={this.props.hostRef}
+                x={x.toString() + "%"}
+                y={y.toString() + "%"}
+                size={size.toString() + "%"}
+                pose={(cellIsActive) ? "active" : "inactive"}
+                poseKey={cellState.timesPlayed % 2}
+                fillActive="#aaff70"
+                fillInactive="#3333ff"
+                onMouseDown={pressHandler}
+                />
+            );
         }
 
         
@@ -277,61 +316,18 @@ class Matrix extends Component {
     }
 }
 
-class Cell extends Component {
+const Cell = (props) => (
+    <rect
+    ref={props.hostRef}
+    x={props.x}
+    y={props.y}
+    width={props.size}
+    height={props.size}
+    onMouseDown={props.onMouseDown}
+    />
+)
 
-    constructor(props) {
-        super(props);
-
-        this.getTransform = this.getTransform.bind(this);
-        this.handlePress = this.handlePress.bind(this);
-    }
-
-    getTransform() {
-
-        let sizeWithPadding = 100 / Math.max(this.props.numCols, this.props.numRows);
-        let size = .80 * sizeWithPadding;
-        let f = (a) => (a * sizeWithPadding) + .5 * (sizeWithPadding - size);
-        let x = f(this.props.col);
-        let y = f(this.props.row);
-
-        let diff = (this.props.numCols - this.props.numRows) * sizeWithPadding;
-        if (diff > 0){
-            y += diff / 2;
-        }
-        else if (diff < 0){
-            x += diff / -2;
-        }
-
-        return {x, y, size};
-    }
-
-    handlePress(e) {
-        if (e.button !== 0){
-            return;
-        }
-        this.props.onPress(this, e);
-    }
-
-    render() {
-        let transform = this.getTransform();
-
-        return (
-            <Box
-            x={transform.x.toString() + "%"}
-            y={transform.y.toString() + "%"}
-            width={transform.size.toString() + "%"}
-            height={transform.size.toString() + "%"}
-            pose={(this.props.isActive) ? "active" : "inactive"}
-            poseKey={this.props.timesPlayed % 2}
-            fillActive="#aaff70"
-            fillInactive="#3333ff"
-            onMouseDown={this.handlePress}
-            />
-        )
-    }
-}
-
-const Box = posed.rect({
+const CellPosed = posed(Cell)({
     inactive: {
         fill: ({fillInactive}) => fillInactive,
     },
