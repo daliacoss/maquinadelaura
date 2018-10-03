@@ -52,6 +52,7 @@ function newCellData(){
         // isPlaying: false,
         timesPlayed: 0,
         mostRecentStepPlayed: -1,
+        mostRecentStepAdded: -1,
         behaviors: {
             onTriggerByPress: [
                 // Math.ceil(Math.random() * BehaviorEnum.TriggerDown)
@@ -66,50 +67,33 @@ function newCellData(){
 }
 
 class App extends Component {
-    constructor(props) {
-        super(props)
-        this.state = {numRows: 5, numCols: 5}
-        this.ref = React.createRef();
-    }
-    render() {
-        let onClick = () => {
-            let numRows = Math.ceil(Math.random() * 7);
-            let numCols = Math.ceil(Math.random() * 7);
-            this.setState({numRows, numCols});
-        };
-        return (
-          <div className="App">
-            <p>Hello world!</p>
-            <Matrix
-            width="600px"
-            height="600px"
-            numRows={this.state.numRows}
-            numCols={this.state.numCols}
-            hostRef={this.ref}
-            />
-            <button onClick={onClick}>
-                randomize grid size
-            </button>
-          </div>
-        );
-    }
-}
-
-class Matrix extends Component {
+    // constructor(props) {
+    //     super(props)
+    //     this.state = {numRows: 5, numCols: 5}
+    // }
 
     constructor(props) {
         super(props);
 
-        let _state = {queue: [], isPlaying: false, tempo: 100, step: -1};
-        for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
+        let _state = {
+            queue: [],
+            isPlaying: false,
+            tempo: 100,
+            step: -1,
+            numRows: 5, // MAGIC VALUE
+            numCols: 5, // MAGIC VALUE
+        };
+        for (let i = 0; i < _state.numRows * _state.numCols; i++){
             _state[i] = newCellData();
         }
+
         this.state = _state;
+        this.cellPressHandlers = {};
+
         this.handleCellPress = this.handleCellPress.bind(this);
         // this.playStep = this.playStep.bind(this);
         this.toggleTimer = this.toggleTimer.bind(this);
         this.setTempoFromForm = this.setTempoFromForm.bind(this);
-        this.cellPressHandlers = {};
     }
 
     componentWillUnmount() {
@@ -170,7 +154,6 @@ class Matrix extends Component {
     }
 
     handleCellPress(index){
-        // let index = (cell.props.row * this.props.numCols) + cell.props.col;
 
         this.setState((prevState) => {
             return update(prevState, {
@@ -208,16 +191,16 @@ class Matrix extends Component {
 
                 switch (absoluteBehavior){
                     case BehaviorEnum.TriggerLeft:
-                        cellToQueue = (index % this.props.numCols) ? index - 1 : cellToQueue;
+                        cellToQueue = (index % this.state.numCols) ? index - 1 : cellToQueue;
                         break;
                     case BehaviorEnum.TriggerRight:
-                        cellToQueue = (index % this.props.numCols !== this.props.numCols - 1) ? index + 1 : cellToQueue;
+                        cellToQueue = (index % this.state.numCols !== this.state.numCols - 1) ? index + 1 : cellToQueue;
                         break;
                     case BehaviorEnum.TriggerUp:
-                        cellToQueue = (index >= this.props.numCols) ? index - this.props.numCols : cellToQueue;
+                        cellToQueue = (index >= this.state.numCols) ? index - this.state.numCols : cellToQueue;
                         break;
                     case BehaviorEnum.TriggerDown:
-                        cellToQueue = (index < (this.props.numRows - 1) * this.props.numCols) ? index + this.props.numCols : cellToQueue;
+                        cellToQueue = (index < (this.state.numRows - 1) * this.state.numCols) ? index + this.state.numCols : cellToQueue;
                         break;
                 }
 
@@ -229,12 +212,12 @@ class Matrix extends Component {
             cellsToSetActive[index] = true;
         }
 
-        for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
+        for (let i = 0; i < this.state.numRows * this.state.numCols; i++){
 
             let prevCellState = prevState[i];
 
             if (! prevCellState){
-                prevState[i] = newCellData();
+                newState[i] = newCellData();
             }
             else if (cellsToSetActive[i]) {
                 newState[i] = update(prevCellState, {
@@ -244,21 +227,78 @@ class Matrix extends Component {
             }
         }
 
-        newState.queue = newQueue;
+        // don't bother updating state.queue if it was and is empty
+        if (newQueue.length && prevState.queue.length){
+            newState.queue = newQueue;
+        }
+
         return newState;
+    }
+
+    render() {
+        let onClick = () => {
+            let numRows = Math.ceil(Math.random() * 7);
+            let numCols = Math.ceil(Math.random() * 7);
+            this.setState({numRows, numCols});
+        };
+        
+        let grid = [];
+        for (let i = 0; i < this.state.numRows * this.state.numCols; i++){
+            let cellData = this.state[i] || newCellData();
+            grid.push(cellData);
+        }
+        
+        return (
+          <div className="App">
+            <p>Hello world!</p>
+
+            <Matrix
+            width="600px" // MAGIC VALUE
+            height="600px" // MAGIC VALUE
+            numRows={this.state.numRows}
+            numCols={this.state.numCols}
+            onCellPressed={this.handleCellPress}
+            step={this.state.step}
+            grid={grid}
+            />
+
+            <br/>
+
+            <button onClick={() => this.setState(this.playStep)}>next step</button>
+            <button onClick={this.toggleTimer}>
+                {(this.state.isPlaying) ? "stop" : "start"}
+            </button>
+            <input type="text" value={this.state.tempo} onChange={this.setTempoFromForm}/>
+            
+            <br/>
+
+            <button onClick={onClick}>
+                randomize grid size
+            </button>
+          </div>
+        );
+    }
+}
+
+class Matrix extends Component {
+    
+    constructor(props) {
+        
+        super(props);
+        this.cellPressHandlers = {};
     }
 
     render() {
 
         let cells = [];
         let sizeWithPadding = 100 / Math.max(this.props.numCols, this.props.numRows);
-        let size = .80 * sizeWithPadding;
+        let size = .80 * sizeWithPadding; // MAGIC VALUE
         let diff = (this.props.numCols - this.props.numRows) * sizeWithPadding;
 
         // create list of <Cell>'s
         for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
-            let cellState = this.state[i] || newCellData();
-            let cellIsActive = cellState.timesPlayed && (cellState.mostRecentStepPlayed === this.state.step);
+            let cellState = this.props.grid[i];
+            let cellIsActive = cellState.timesPlayed && (cellState.mostRecentStepPlayed === this.props.step);
             let col = i % this.props.numCols;
             let row = Math.floor(i / this.props.numCols);
 
@@ -273,14 +313,14 @@ class Matrix extends Component {
             else if (diff < 0){
                 x += diff / -2;
             }
-
+            
             let pressHandler = this.cellPressHandlers[i];
             if (! pressHandler){
                 pressHandler = (e) => {
                     if (e.button !== 0){
                         return;
                     }
-                    this.handleCellPress(i);
+                    this.props.onCellPressed(i);
                 }
 
                 this.cellPressHandlers[i] = pressHandler;
@@ -304,19 +344,10 @@ class Matrix extends Component {
             cells.push(<Cell {...props} />);
         }
 
-
         return (
-            <div>
-                <svg className="Matrix" width={this.props.width} height={this.props.height}>
-                    { cells }
-                </svg>
-                <br/>
-                <button onClick={() => this.setState(this.playStep)}>next step</button>
-                <button onClick={this.toggleTimer}>
-                    {(this.state.isPlaying) ? "stop" : "start"}
-                </button>
-                <input type="text" value={this.state.tempo} onChange={this.setTempoFromForm}/>
-            </div>
+            <svg className="Matrix" width={this.props.width} height={this.props.height}>
+                { cells }
+            </svg>
         )
     }
 }
