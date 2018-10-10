@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import update from "immutability-helper";
 import posed from "react-pose";
+import _ from "lodash";
 import './App.css';
 
 const BehaviorEnum = Object.freeze({
@@ -47,12 +48,12 @@ function relativeDirectionToAbsolute(fromAbsolute, toRelative){
     return result;
 }
 
-function newCellData(){
+function newCellData(currentStep=-1){
     return {
         // isPlaying: false,
         timesPlayed: 0,
         mostRecentStepPlayed: -1,
-        mostRecentStepAdded: -1,
+        mostRecentStepAdded: currentStep,
         behaviors: {
             onTriggerByPress: [
                 // Math.ceil(Math.random() * BehaviorEnum.TriggerDown)
@@ -66,11 +67,20 @@ function newCellData(){
     };
 }
 
+function nestedUnary(...args){
+    // nestedUnary(func1, func2, func3)(initialArg) is equivalent to:
+    // func1(func2(func3(initialArg)))
+
+    return (initial) => {
+        args.reverse().reduce((a,b) => b(a), initial)
+    };
+}
+
+function indexToCoords({index, numRows, numCols}){
+    return {col: index % numCols, row: Math.floor(index / numCols)};
+}
+
 class App extends Component {
-    // constructor(props) {
-    //     super(props)
-    //     this.state = {numRows: 5, numCols: 5}
-    // }
 
     constructor(props) {
         super(props);
@@ -80,18 +90,17 @@ class App extends Component {
             isPlaying: false,
             tempo: 100,
             step: -1,
-            numRows: 5, // MAGIC VALUE
-            numCols: 5, // MAGIC VALUE
+            nextNumRows: 5, // MAGIC VALUE
+            nextNumCols: 5, // MAGIC VALUE
+            numRows: -1,
+            numCols: -1,
+            mostRecentGridUpdate: -1
         };
-        for (let i = 0; i < _state.numRows * _state.numCols; i++){
-            _state[i] = newCellData();
-        }
 
-        this.state = _state;
+        this.state = this.playStep(_state);
         this.cellPressHandlers = {};
 
         this.handleCellPress = this.handleCellPress.bind(this);
-        // this.playStep = this.playStep.bind(this);
         this.toggleTimer = this.toggleTimer.bind(this);
         this.setTempoFromForm = this.setTempoFromForm.bind(this);
     }
@@ -139,13 +148,13 @@ class App extends Component {
             return;
         }
 
-        this.setState((prevState) => {
+        this.setState((oldState) => {
             // we have to clear and set the intervals directly instead of using
             // startTimer or stopTimer, since those wrappers rely on potentially
             // outdated state
             this.clearTimer();
 
-            if (prevState.isPlaying){
+            if (oldState.isPlaying){
                 this.setTimer(tempo);
             }
 
@@ -155,25 +164,96 @@ class App extends Component {
 
     handleCellPress(index){
 
-        this.setState((prevState) => {
-            return update(prevState, {
+        this.setState((oldState) => {
+            return update(oldState, {
                 queue: {$push: [{triggeredByIndex: -1, index}]}
             });
         });
     }
 
-    playStep(prevState){
+    updateNextGridSize(oldState, {numCols, numRows}){
+        // do not immediately alter grid size--update will be applied when the
+        // next step is played
+
         let newState = {};
+
+        let shouldUpdateNumCols = (numCols !== undefined && numCols !== oldState.numCols);
+        let shouldUpdateNumRows = (numRows !== undefined && numRows !== oldState.numRows);
+
+        if (! (shouldUpdateNumRows || shouldUpdateNumCols)){
+            return Object.assign(oldState, newState);
+        }
+
+        if (shouldUpdateNumCols){
+            newState.nextNumCols = numCols;
+        }
+        if (shouldUpdateNumRows){
+            newState.nextNumRows = numRows;
+        }
+
+        return Object.assign(oldState, newState);
+    }
+
+    tryUpdateGridSize(oldState, {newStep=oldState.step}={}){
+        // may update:
+        //  numRows, numCols, nextNumRows, nextNumCols, mostRecentGridUpdate
+        // depends:
+        //  nextNumRows, nextNumCols
+        // may depend:
+        //  step
+
+        let newState = {};
+
+        if (oldState.nextNumRows >= 0 || newStep === 0) {
+            newState.numRows = oldState.nextNumRows;
+            newState.nextNumRows = -1;
+            newState.mostRecentGridUpdate = newStep;
+        }
+        else {
+            newState.numRows = oldState.numRows;
+        }
+
+        if (oldState.nextNumCols >= 0 || newStep === 0) {
+            newState.numCols = oldState.nextNumCols;
+            newState.nextNumCols = -1;
+            newState.mostRecentGridUpdate = newStep;
+        }
+        else {
+            newState.numCols = oldState.numCols;
+        }
+        
+        return Object.assign(oldState, newState);
+    }
+
+    playStep(oldState){
+        // calls:
+        //  tryUpdateGridSize
+
+        let newState = this.tryUpdateGridSize(
+            update(oldState, {step: (x) => x + 1})
+        );
         let newQueue = [];
+        
+        // if grid size has changed on this step, re-create all cells and mark
+        // as inactive
+        if (newState.mostRecentGridUpdate === newState.step){
+            let start = (newState.step) ? oldState.numRows * oldState.numCols : 0;
+            for (let i = start; i < newState.numRows * newState.numCols; i++){
+                newState[i] = newCellData(newState.step);
+            }
+            newState.queue = newQueue;
+            return Object.assign(oldState, newState);
+        }
+
         let cellsToSetActive = {};
-        newState.step = prevState.step + 1;
 
-        for (let k in prevState.queue){
-            let index = prevState.queue[k].index;
-            let triggeredByIndex = prevState.queue[k].triggeredByIndex;
+        for (let queueEntry of oldState.queue){
+            let index = queueEntry.index;
 
-            let prevCellState = prevState[index];
-            let behaviors = prevCellState.behaviors[(triggeredByIndex < 0) ? "onTriggerByPress" : "onTriggerByCell"];
+            let triggeredByIndex = queueEntry.triggeredByIndex;
+
+            let oldCellState = oldState[index];
+            let behaviors = oldCellState.behaviors[(triggeredByIndex < 0) ? "onTriggerByPress" : "onTriggerByCell"];
 
             for (let i in behaviors){
                 let cellToQueue = -1;
@@ -184,23 +264,23 @@ class App extends Component {
                 // relative direction, convert that to an absolute direction
 
                 let absoluteBehavior = (triggeredByIndex < 0) ? behaviors[i] :
-                                       relativeDirectionToAbsolute(prevState.queue[k].triggeredByDirection, behaviors[i]);
+                                       relativeDirectionToAbsolute(queueEntry.triggeredByDirection, behaviors[i]);
 
                 // determine which neighbours, if any, should be triggered
                 // on the next cycle
 
                 switch (absoluteBehavior){
                     case BehaviorEnum.TriggerLeft:
-                        cellToQueue = (index % this.state.numCols) ? index - 1 : cellToQueue;
+                        cellToQueue = (index % newState.numCols) ? index - 1 : cellToQueue;
                         break;
                     case BehaviorEnum.TriggerRight:
-                        cellToQueue = (index % this.state.numCols !== this.state.numCols - 1) ? index + 1 : cellToQueue;
+                        cellToQueue = (index % newState.numCols !== newState.numCols - 1) ? index + 1 : cellToQueue;
                         break;
                     case BehaviorEnum.TriggerUp:
-                        cellToQueue = (index >= this.state.numCols) ? index - this.state.numCols : cellToQueue;
+                        cellToQueue = (index >= newState.numCols) ? index - newState.numCols : cellToQueue;
                         break;
                     case BehaviorEnum.TriggerDown:
-                        cellToQueue = (index < (this.state.numRows - 1) * this.state.numCols) ? index + this.state.numCols : cellToQueue;
+                        cellToQueue = (index < (newState.numRows - 1) * newState.numCols) ? index + newState.numCols : cellToQueue;
                         break;
                 }
 
@@ -212,42 +292,37 @@ class App extends Component {
             cellsToSetActive[index] = true;
         }
 
-        for (let i = 0; i < this.state.numRows * this.state.numCols; i++){
+        for (let i = 0; i < newState.numRows * newState.numCols; i++){
 
-            let prevCellState = prevState[i];
-
-            if (! prevCellState){
-                newState[i] = newCellData();
-            }
-            else if (cellsToSetActive[i]) {
-                newState[i] = update(prevCellState, {
+            if (cellsToSetActive[i]) {
+                newState[i] = update(oldState[i], {
                     timesPlayed: {$apply: (x) => x + 1},
                     mostRecentStepPlayed: {$set: newState.step}
                 });
             }
         }
 
-        // don't bother updating state.queue if it was and is empty
-        if (newQueue.length && prevState.queue.length){
-            newState.queue = newQueue;
-        }
+        newState.queue = newQueue;
 
-        return newState;
+        return Object.assign(oldState, newState);
     }
 
     render() {
         let onClick = () => {
-            let numRows = Math.ceil(Math.random() * 7);
-            let numCols = Math.ceil(Math.random() * 7);
-            this.setState({numRows, numCols});
+            let gridSize = {
+                numRows: Math.ceil(Math.random() * 7),
+                numCols: Math.ceil(Math.random() * 7),
+            }
+            // this.setState({numRows, numCols});
+            this.setState((oldState) => this.updateNextGridSize(oldState, gridSize));
         };
-        
+
         let grid = [];
         for (let i = 0; i < this.state.numRows * this.state.numCols; i++){
-            let cellData = this.state[i] || newCellData();
+            let cellData = this.state[i];
             grid.push(cellData);
         }
-        
+
         return (
           <div className="App">
             <p>Hello world!</p>
@@ -259,6 +334,7 @@ class App extends Component {
             numCols={this.state.numCols}
             onCellPressed={this.handleCellPress}
             step={this.state.step}
+            mostRecentGridUpdate={this.state.mostRecentGridUpdate}
             grid={grid}
             />
 
@@ -269,7 +345,7 @@ class App extends Component {
                 {(this.state.isPlaying) ? "stop" : "start"}
             </button>
             <input type="text" value={this.state.tempo} onChange={this.setTempoFromForm}/>
-            
+
             <br/>
 
             <button onClick={onClick}>
@@ -281,9 +357,9 @@ class App extends Component {
 }
 
 class Matrix extends Component {
-    
+
     constructor(props) {
-        
+
         super(props);
         this.cellPressHandlers = {};
     }
@@ -298,9 +374,9 @@ class Matrix extends Component {
         // create list of <Cell>'s
         for (let i = 0; i < this.props.numRows * this.props.numCols; i++){
             let cellState = this.props.grid[i];
-            let cellIsActive = cellState.timesPlayed && (cellState.mostRecentStepPlayed === this.props.step);
             let col = i % this.props.numCols;
             let row = Math.floor(i / this.props.numCols);
+            let useActivePose = cellState.timesPlayed > 0 && (cellState.mostRecentStepPlayed === this.props.step);
 
             let x = (col * sizeWithPadding) + .5 * (sizeWithPadding - size);
             let y = (row * sizeWithPadding) + .5 * (sizeWithPadding - size);
@@ -313,7 +389,7 @@ class Matrix extends Component {
             else if (diff < 0){
                 x += diff / -2;
             }
-            
+
             let pressHandler = this.cellPressHandlers[i];
             if (! pressHandler){
                 pressHandler = (e) => {
@@ -334,8 +410,9 @@ class Matrix extends Component {
                 y: `${y}%`,
                 width: `${size}%`,
                 height: `${size}%`,
-                pose: (cellIsActive) ? "active" : "inactive",
-                poseKey: cellState.timesPlayed % 2,
+                pose: (useActivePose) ? "active" : "inactive",
+                initialPose: "inactive",
+                poseKey: cellState.timesPlayed,
                 fillActive: "#aaff70", // MAGIC VALUE
                 fillInactive: "#3333ff", // MAGIC VALUE
                 onMouseDown: pressHandler,
